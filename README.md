@@ -200,48 +200,196 @@ curl -sSfL https://raw.githubusercontent.com/longhorn/longhorn/v1.3.1/scripts/en
 
 ## 9. Install Argo-CD (Declarative GitOps CD for Kubernetes)
 
-https://argo-cd.readthedocs.io/en/stable/getting_started/
+### Create a public or private repo for Argo-CD Deployment !!!!!!
 
 ```bash
+go to your repo
+mkdir -p charts/argo-cd
+```
+
+charts/argo-cd/Chart.yaml
+```yaml
+apiVersion: v2
+name: argo-cd
+version: 1.0.0
+dependencies:
+  - name: argo-cd
+    version: 4.10.6
+    repository: https://argoproj.github.io/argo-helm
+```
+
+charts/argo-cd/values.yaml
+```yaml
+argo-cd:
+  dex:
+    enabled: false
+  server:
+    config:
+      repositories: |
+        - type: helm
+          name: argo-cd
+          url: https://argoproj.github.io/argo-helm
+```
+
+create Chart.lock and charts/argo-cd-4.2.2.tgz
+```bash
+helm repo add argo-cd https://argoproj.github.io/argo-helm
+helm dep update charts/argo-cd/
+```
+
+gitignore argo-cd-4.2.2.tgz and Chart.lock
+```bash
+echo "charts/" > charts/argo-cd/.gitignore
+```
+
+Install Argo-CD over Helm
+```bash
 kubectl create namespace argocd
-kubectl apply -n argocd -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+helm install argo-cd charts/argo-cd/ --namespace argocd
+```
+
+### Install Argo-CD CLI
+```bash
 sudo curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
 sudo chmod +x /usr/local/bin/argocd
 ```
 
-### Change the argocd-server service type to LoadBalancer:
+### Open Argo-CD UI
 ```bash
-kubectl patch svc argocd-server -n argocd -p '{"spec": {"type": "LoadBalancer"}}'
+kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+kubectl port-forward svc/argo-cd-argocd-server -n argocd 8080:443
 ```
+Username: admin   
+Web UI or Argo-CD CLI can then be accessed using https://localhost:8080   
+
+If using private repo over ssh, connect this repo with key in the Argo-CD UI
+https://argo-cd.readthedocs.io/en/stable/user-guide/private-repositories/#ssh-private-key-credential
 
 ### For Ingress
 see https://argo-cd.readthedocs.io/en/stable/operator-manual/ingress/   
 
-### Admin Password
+### Create Root Application for Applications/Helm Releases/Resources
 
-Username: admin
-
-```bash
-kubectl -n argocd get secret argocd-initial-admin-secret -o jsonpath="{.data.password}" | base64 -d; echo
+apps/Chart.yaml
+```yaml
+apiVersion: v2
+name: root
+version: 1.0.0
 ```
 
-### Open Argo-CD UI
-```bash
-kubectl port-forward svc/argocd-server -n argocd 8080:443
+apps/templates/root.yaml
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  project: default
+  source:
+    path: apps/
+    repoURL: git@github.com:gammpamm/root.git
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
 ```
-The API server can then be accessed using https://localhost:8080   
 
+Git commit the changes in repo and push
 
+Install root app over helm template:
+```bash
+helm template apps/ | kubectl apply -n argocd -f -  
+```
 
+### Argo CD manage itself
+
+apps/templates/argo-cd.yaml
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-cd
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  project: default
+  source:
+    path: charts/argo-cd
+    repoURL: git@github.com:gammpamm/root.git
+    targetRevision: HEAD
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+Git commit the changes in repo and push
+
+Now can delete Helm Release since argo-cd now manages itself (see 2 Applications in Argo-CD UI - root & argo-cd)
+```bash
+kubectl delete secret -l owner=helm,name=argo-cd -n argocd
+```
+
+### Example install metrics-server via Argo-CD
+
+apps/templates/metrics-server.yaml
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: metrics-server
+  namespace: argocd
+  finalizers:
+  - resources-finalizer.argocd.argoproj.io
+spec:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kube-system
+  project: default
+  source:
+    chart: metrics-server
+    helm:
+      values: |
+        args:
+          - --kubelet-insecure-tls
+    repoURL: https://kubernetes-sigs.github.io/metrics-server
+    targetRevision: 3.8.2
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+```
+
+Now can you see 3 Apps in Argo-CD UI (root & argo-cd & metrics-server)
+
+or via argocd cli:
+```bash
+argocd login localhost:8080
+argocd app list
+```
+
+```
+NAME            CLUSTER                         NAMESPACE    PROJECT  STATUS  HEALTH   SYNCPOLICY  CONDITIONS  REPO                                              PATH            TARGET
+argo-cd         https://kubernetes.default.svc  argocd       default  Synced  Healthy  Auto-Prune  <none>      git@github.com:gammpamm/root.git               charts/argo-cd  HEAD
+metrics-server  https://kubernetes.default.svc  kube-system  default  Synced  Healthy  Auto-Prune  <none>      https://kubernetes-sigs.github.io/metrics-server                  3.8.2
+root            https://kubernetes.default.svc  argocd       default  Synced  Healthy  Auto-Prune  <none>      git@github.com:gammpamm/root.git               apps/           HEAD
+```
 
 
 helm repo add longhorn https://charts.longhorn.io
 helm repo update
 helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace
 
-helm repo add metrics-server https://kubernetes-sigs.github.io/metrics-server/
-helm upgrade --namespace kube-system --install metrics-server metrics-server/metrics-server \
-    --set args="{--kubelet-insecure-tls,--kubelet-use-node-status-port}"
 
 
 
