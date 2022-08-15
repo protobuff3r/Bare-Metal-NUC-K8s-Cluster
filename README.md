@@ -9,6 +9,8 @@ Kubernetes v1.24
 
 ## Apps
 
+- CRI-O (Container Engine)
+- Cilium CNI without KubeProxy (Network Driver)
 - Argo-CD (GitOps Deployment)
 - Longhorn (Storage Management)
 - Metal-LB (Bare Metal Load Balancer)
