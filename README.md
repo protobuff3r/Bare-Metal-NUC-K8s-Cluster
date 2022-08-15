@@ -20,7 +20,7 @@ locale-gen en_US.UTF-8
 
 ### Add public key for ssh connect
 ```bash
-vi .ssh/authorized_keys
+vi /home/k8s/.ssh/authorized_keys
 ```
 
 ### Set static IP for node
@@ -35,6 +35,20 @@ addresses: [192.168.50.101/24]
 gateway4: 192.168.50.1
 nameservers:
   addresses: [1.1.1.1,8.8.8.8,192.168.50.1]
+```
+
+### Create Longhorn Volumes
+
+```bash
+lvcreate -n longhorn -l 100%FREE ubuntu-vg
+mkfs.ext4 /dev/ubuntu-vg/longhorn
+mkdir -p /var/lib/longhorn
+mount /dev/ubuntu-vg/longhorn /var/lib/longhorn
+```
+
+/etc/fstab
+```
+/dev/ubuntu-vg/longhorn /var/lib/longhorn ext4 defaults 0 0
 ```
 
 ## 2. Install Kubeadm Kubelet Kubectl
@@ -151,6 +165,7 @@ Remove the Taint using this command:
 
 ```bash
 kubectl taint node k8smaster node-role.kubernetes.io/master:NoSchedule-
+kubectl taint node k8smaster node-role.kubernetes.io/control-plane:NoSchedule-
 ```
 
 ## 5. Install Cilium CNI without Kubeproxy
@@ -384,13 +399,6 @@ argo-cd         https://kubernetes.default.svc  argocd       default  Synced  He
 metrics-server  https://kubernetes.default.svc  kube-system  default  Synced  Healthy  Auto-Prune  <none>      https://kubernetes-sigs.github.io/metrics-server                  3.8.2
 root            https://kubernetes.default.svc  argocd       default  Synced  Healthy  Auto-Prune  <none>      git@github.com:gammpamm/root.git               apps/           HEAD
 ```
-
-
-helm repo add longhorn https://charts.longhorn.io
-helm repo update
-helm install longhorn longhorn/longhorn --namespace longhorn-system --create-namespace
-
-
 
 
 # Troubleshooting
