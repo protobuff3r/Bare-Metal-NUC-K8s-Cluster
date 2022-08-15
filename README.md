@@ -2,10 +2,10 @@
 
 ## Current Setup
 
-3x Intel NUC 11 Pro Kit NUC11TNHi5 i5-1135G7 64GB Memory SSD 1TB NVME (1x Master & 2 Worker)   
-TP-Link TL-SG108 LAN Switch 8 Port Netzwerk Gigabit Switch   
-Ubuntu 22.04   
-Kubernetes v1.24   
+- 3x Intel NUC 11 Pro Kit NUC11TNHi5 i5-1135G7 64GB Memory SSD 1TB NVME (1x Master & 2 Worker)   
+- TP-Link TL-SG108 LAN Switch 8 Port Netzwerk Gigabit Switch   
+- Ubuntu 22.04   
+- Kubernetes v1.24   
 
 ## Apps
 
