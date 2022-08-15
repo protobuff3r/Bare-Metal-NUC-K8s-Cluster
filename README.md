@@ -7,6 +7,14 @@ TP-Link TL-SG108 LAN Switch 8 Port Netzwerk Gigabit Switch
 Ubuntu 22.04   
 Kubernetes v1.24   
 
+## Apps
+
+- Argo-CD (GitOps Deployment)
+- Longhorn (Storage Management)
+- Metal-LB (Bare Metal Load Balancer)
+- Metrics-Server (kubectl top nodes - metrics)
+- Traefik (Ingress-Controller)
+
 ## 1. Bootstrap Nodes:
 
 ### Run as root
